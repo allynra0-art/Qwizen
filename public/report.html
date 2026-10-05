@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Detail laporan</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap" style="max-width:860px"><div class="top" id="top"></div><main id="main"><p class="muted">Memuat…</p></main></div>
+<script type="module">
+import { api, esc, needUser, topbar } from '/js/app.js';
+topbar(document.querySelector('#top'), await needUser());
+const main = document.querySelector('#main'), id = new URLSearchParams(location.search).get('id');
+const lvl = (p) => (p >= 80 ? ['Mudah', 'good'] : p < 40 ? ['Sulit', 'bad2'] : ['Sedang', 'muted']);
+try {
+  const r = await api('/reports/' + encodeURIComponent(id));
+  main.innerHTML = `<h1>${esc(r.title)}</h1><p class="muted">${r.playerCount} pemain · rata-rata skor ${r.avgScore}</p>
+  <p><a class="btn" href="/api/reports/${r.id}/export">Unduh CSV</a> <a class="btn soft" href="/reports.html">Semua laporan</a></p>
+  <div class="card"><b>Peringkat akhir</b><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Nama</th><th>Skor</th><th>Benar</th><th>Waktu rata-rata</th></tr></thead><tbody>
+  ${r.players.map((p) => `<tr><td>${p.rank}</td><td>${esc(p.nickname)}</td><td>${p.score}</td><td>${p.correct}/${r.questions.length}</td><td>${(p.avgMs / 1000).toFixed(1)} dtk</td></tr>`).join('')}
+  </tbody></table></div></div><h2>Per soal</h2>
+  ${r.questions.map((q) => { const [l, c] = lvl(q.correctPct), max = Math.max(1, ...q.distribution.map((d) => d.count));
+    return `<div class="card"><b>${q.index + 1}. ${esc(q.text)}</b> <span class="${c}">· ${l}</span>
+    <p class="muted">${q.correctPct}% benar · rata-rata ${(q.avgMs / 1000).toFixed(1)} dtk · ${q.unanswered} tidak menjawab</p>
+    <div class="dist">${q.distribution.map((d) => `<div class="${d.correct ? 'ok' : ''}"><i style="width:${(d.count / max) * 100}%"></i><span><b>${d.correct ? '✔ ' : ''}${esc(d.label)}</b><b>${d.count}</b></span></div>`).join('')}</div></div>`; }).join('')}`;
+} catch (e) { main.innerHTML = `<p class="err">${esc(e.message)}</p><a class="btn soft" href="/reports.html">Kembali</a>`; }
+</script></body></html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Kuis saya</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap"><div class="top" id="top"></div>
+<div class="row" style="margin-bottom:14px"><h1 style="margin:0">Kuis saya</h1><span class="sp"></span><a class="btn soft" href="/reports.html">Laporan</a><a class="btn" href="/builder.html">+ Kuis baru</a></div>
+<main id="list" aria-live="polite"><p class="muted">Memuat…</p></main></div>
+<script type="module">
+import { api, esc, toast, needUser, topbar } from '/js/app.js';
+topbar(document.querySelector('#top'), await needUser());
+const box = document.querySelector('#list');
+async function load() {
+  try {
+    const qs = await api('/quizzes');
+    if (!qs.length) { box.innerHTML = `<div class="card empty"><h2>Belum ada kuis</h2><p class="muted">Buat kuis pertamamu, cukup beberapa menit.</p><a class="btn" href="/builder.html">Buat kuis pertama</a></div>`; return; }
+    box.innerHTML = qs.map((q) => `<div class="card row"><div class="sp"><b>${esc(q.title)}</b><div class="muted">${q.questionCount} soal</div></div>
+      <button class="btn sm" data-play="${q.id}">Mainkan</button><a class="btn soft sm" href="/builder.html?id=${q.id}">Edit</a><button class="btn soft sm" data-del="${q.id}">Hapus</button></div>`).join('');
+  } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+box.onclick = async (e) => {
+  if (e.target.dataset.play) {
+    try { const g = await api('/games', { method: 'POST', body: { quizId: Number(e.target.dataset.play) } }); location.href = '/host.html?pin=' + g.pin; }
+    catch (er) { toast(er.message, true); }
+    return;
+  }
+  const id = e.target.dataset.del; if (!id || !confirm('Hapus kuis ini? Tindakan ini tidak bisa dibatalkan.')) return;
+  try { await api('/quizzes/' + id, { method: 'DELETE' }); toast('Kuis dihapus'); load(); } catch (er) { toast(er.message, true); }
+};
+load();
+</script></body></html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Builder kuis</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap"><div class="top" id="top"></div>
+<div class="card"><label for="title">Judul kuis</label><input id="title" maxlength="100" placeholder="Misal: IPA Kelas 6 — Tata Surya">
+<label for="desc">Deskripsi (opsional)</label><input id="desc" maxlength="300"></div>
+<div id="qs"></div>
+<div class="row"><button class="btn soft" id="add">+ Tambah soal</button><span class="sp"></span><a class="btn soft" href="/dashboard.html">Kembali</a><button class="btn" id="save">Simpan kuis</button></div>
+</div>
+<script type="module">
+import { api, esc, toast, needUser, topbar } from '/js/app.js';
+topbar(document.querySelector('#top'), await needUser());
+const $ = (s) => document.querySelector(s);
+let id = new URLSearchParams(location.search).get('id');
+let quiz = { title: '', description: '', questions: [] };
+if (id) { try { quiz = await api('/quizzes/' + id); } catch (e) { toast(e.message, true); } }
+$('#title').value = quiz.title; $('#desc').value = quiz.description;
+
+const TYPES = { MULTIPLE_CHOICE: 'Pilihan ganda', TRUE_FALSE: 'Benar / Salah', TYPE_ANSWER: 'Isian singkat' };
+const blank = (type, text = '') => ({ type, text, timeLimit: 20, points: 1000, explanation: '',
+  ...(type === 'MULTIPLE_CHOICE' ? { options: ['', '', '', ''], correct: 0 } : type === 'TRUE_FALSE' ? { correct: true } : { answers: ['', '', ''] }) });
+quiz.questions = quiz.questions.map((q) => q.type === 'MULTIPLE_CHOICE' ? { ...q, options: [...q.options, '', '', '', ''].slice(0, 4) }
+  : q.type === 'TYPE_ANSWER' ? { ...q, answers: [...q.answers, '', '', ''].slice(0, 3) } : q);
+const sel = (f, vals, cur) => `<select data-f="${f}">${vals.map(([v, l]) => `<option value="${v}"${v == cur ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+
+function qHTML(q, i) {
+  let body = '';
+  if (q.type === 'MULTIPLE_CHOICE') body = '<label>Isi opsi, lalu tandai jawaban yang benar</label>' + q.options.map((o, j) =>
+    `<div class="opt"><input type="radio" name="c${i}" data-f="correct" data-j="${j}" aria-label="Opsi ${j + 1} benar"${q.correct === j ? ' checked' : ''}><input type="text" data-f="opt" data-j="${j}" value="${esc(o)}" placeholder="Opsi ${j + 1}${j > 1 ? ' (boleh kosong)' : ''}" maxlength="100"></div>`).join('');
+  else if (q.type === 'TRUE_FALSE') body = '<label>Jawaban yang benar</label>' + [[true, 'Benar'], [false, 'Salah']].map(([v, l]) =>
+    `<div class="opt"><input type="radio" name="c${i}" data-f="tf" value="${v}"${q.correct === v ? ' checked' : ''} id="tf${i}${v}"><label for="tf${i}${v}" style="margin:0">${l}</label></div>`).join('');
+  else body = '<label>Jawaban yang diterima (huruf besar/kecil tidak berpengaruh)</label>' + q.answers.map((a, j) =>
+    `<input type="text" data-f="ans" data-j="${j}" value="${esc(a)}" placeholder="Jawaban ${j + 1}${j ? ' (opsional)' : ''}" maxlength="100">`).join('');
+  return `<article class="card q" data-i="${i}"><div class="row" style="margin-bottom:10px"><b>Soal ${i + 1}</b>
+    <span class="sp"></span><button class="btn soft sm" data-act="up" aria-label="Naikkan">↑</button><button class="btn soft sm" data-act="down" aria-label="Turunkan">↓</button>
+    <button class="btn soft sm" data-act="dup">Duplikat</button><button class="btn soft sm" data-act="del">Hapus</button></div>
+    ${sel('type', Object.entries(TYPES), q.type)}
+    <input data-f="text" value="${esc(q.text)}" placeholder="Tulis pertanyaan di sini" maxlength="300" aria-label="Pertanyaan">
+    ${body}<div class="meta" style="margin-top:10px"><div><label>Waktu</label>${sel('timeLimit', [10, 20, 30, 60].map((v) => [v, v + ' detik']), q.timeLimit)}</div>
+    <div><label>Poin</label>${sel('points', [[0, '0 (tanpa poin)'], [500, '500'], [1000, '1000'], [2000, '2000 (ganda)']], q.points)}</div></div>
+    <input data-f="explanation" value="${esc(q.explanation)}" placeholder="Penjelasan jawaban (opsional)" maxlength="500"></article>`;
+}
+function render() {
+  $('#qs').innerHTML = quiz.questions.length ? quiz.questions.map(qHTML).join('')
+    : '<div class="card empty"><p class="muted">Belum ada soal. Klik "Tambah soal" untuk mulai.</p></div>';
+}
+render();
+
+$('#add').onclick = () => { quiz.questions.push(blank('MULTIPLE_CHOICE')); render(); window.scrollTo(0, document.body.scrollHeight); };
+$('#qs').addEventListener('click', (e) => {
+  const act = e.target.dataset.act, a = e.target.closest('.q'); if (!act || !a) return;
+  const i = +a.dataset.i, L = quiz.questions;
+  if (act === 'del') L.splice(i, 1);
+  else if (act === 'dup') L.splice(i + 1, 0, JSON.parse(JSON.stringify(L[i])));
+  else { const k = act === 'up' ? i - 1 : i + 1; if (k < 0 || k >= L.length) return; [L[i], L[k]] = [L[k], L[i]]; }
+  render();
+});
+$('#qs').addEventListener('input', (e) => {
+  const t = e.target, f = t.dataset.f, a = t.closest('.q'); if (!f || !a) return;
+  const q = quiz.questions[+a.dataset.i], j = +t.dataset.j;
+  if (f === 'type') { quiz.questions[+a.dataset.i] = blank(t.value, q.text); render(); }
+  else if (f === 'opt') q.options[j] = t.value;
+  else if (f === 'ans') q.answers[j] = t.value;
+  else if (f === 'correct') q.correct = j;
+  else if (f === 'tf') q.correct = t.value === 'true';
+  else q[f] = (f === 'timeLimit' || f === 'points') ? Number(t.value) : t.value;
+});
+
+function payload() {
+  const questions = quiz.questions.map((q, n) => {
+    const base = { type: q.type, text: q.text, timeLimit: q.timeLimit, points: q.points, explanation: q.explanation };
+    if (q.type === 'MULTIPLE_CHOICE') {
+      const kept = q.options.map((t, k) => ({ t: t.trim(), k })).filter((o) => o.t);
+      const c = kept.findIndex((o) => o.k === q.correct);
+      if (kept.length < 2) throw new Error(`Soal ${n + 1}: isi minimal 2 opsi.`);
+      if (c < 0) throw new Error(`Soal ${n + 1}: opsi yang ditandai benar masih kosong.`);
+      return { ...base, options: kept.map((o) => o.t), correct: c };
+    }
+    if (q.type === 'TRUE_FALSE') return { ...base, correct: q.correct };
+    const ans = q.answers.map((s) => s.trim()).filter(Boolean);
+    if (!ans.length) throw new Error(`Soal ${n + 1}: isi minimal satu jawaban.`);
+    return { ...base, answers: ans };
+  });
+  return { title: $('#title').value, description: $('#desc').value, questions };
+}
+$('#save').onclick = async () => {
+  try {
+    const body = payload();
+    if (!body.title.trim()) throw new Error('Judul kuis belum diisi.');
+    $('#save').disabled = true;
+    const saved = await api(id ? '/quizzes/' + id : '/quizzes', { method: id ? 'PUT' : 'POST', body });
+    if (!id) { id = saved.id; history.replaceState(null, '', '/builder.html?id=' + id); }
+    toast('Kuis tersimpan');
+  } catch (e) { toast(e.message, true); }
+  $('#save').disabled = false;
+};
+</script></body></html>

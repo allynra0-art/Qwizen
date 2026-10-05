@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Masuk guru</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap" style="max-width:420px">
+<p class="top"><a class="logo" href="/"><i></i>Qwizen</a><a class="btn soft sm" href="/">← Beranda</a></p>
+<div class="card">
+<h1 id="ttl">Masuk sebagai guru</h1>
+<div class="tabs"><button class="btn" id="tl" type="button">Masuk</button><button class="btn soft" id="tr" type="button">Daftar</button></div>
+<form id="f" novalidate>
+<div id="nm" hidden><label for="name">Nama</label><input id="name" autocomplete="name" maxlength="60"></div>
+<label for="email">Email</label><input id="email" type="email" autocomplete="email">
+<label for="pw">Password (minimal 8 karakter)</label><input id="pw" type="password" autocomplete="current-password">
+<p class="err" id="err" role="alert"></p>
+<button class="btn full" id="go">Masuk</button>
+</form></div>
+<p class="muted" style="text-align:center">Siswa tidak perlu akun. Mereka cukup memasukkan PIN dari guru di <a href="/">beranda</a>.</p>
+</div>
+<script type="module">
+import { api } from '/js/app.js';
+try { await api('/auth/me'); location.href = '/dashboard.html'; } catch {}
+let reg = false;
+const $ = (s) => document.querySelector(s);
+function mode(r) {
+  reg = r; $('#nm').hidden = !r;
+  $('#go').textContent = r ? 'Buat akun' : 'Masuk';
+  $('#ttl').textContent = r ? 'Buat akun guru' : 'Masuk sebagai guru';
+  $('#tl').className = 'btn' + (r ? ' soft' : ''); $('#tr').className = 'btn' + (r ? '' : ' soft');
+  $('#pw').autocomplete = r ? 'new-password' : 'current-password'; $('#err').textContent = '';
+}
+$('#tl').onclick = () => mode(false); $('#tr').onclick = () => mode(true);
+if (location.hash === '#daftar') mode(true);
+$('#f').onsubmit = async (e) => {
+  e.preventDefault(); $('#err').textContent = ''; $('#go').disabled = true;
+  try {
+    const body = { email: $('#email').value, password: $('#pw').value };
+    if (reg) body.name = $('#name').value;
+    await api(reg ? '/auth/register' : '/auth/login', { method: 'POST', body });
+    location.href = '/dashboard.html';
+  } catch (er) { $('#err').textContent = er.message; $('#go').disabled = false; }
+};
+</script></body></html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Laporan</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap"><div class="top" id="top"></div>
+<div class="row" style="margin-bottom:14px"><h1 style="margin:0">Laporan game</h1><span class="sp"></span><a class="btn soft" href="/dashboard.html">Kuis saya</a></div>
+<main id="list"><p class="muted">Memuat…</p></main></div>
+<script type="module">
+import { api, esc, needUser, topbar } from '/js/app.js';
+topbar(document.querySelector('#top'), await needUser());
+const box = document.querySelector('#list');
+try {
+  const rs = await api('/reports');
+  box.innerHTML = rs.length ? rs.map((r) => `<div class="card row"><div class="sp"><b>${esc(r.title)}</b>
+    <div class="muted">${new Date(r.endedAt.replace(' ', 'T') + 'Z').toLocaleString('id-ID')} · ${r.playerCount} pemain</div></div>
+    <a class="btn sm" href="/report.html?id=${r.id}">Buka</a></div>`).join('')
+    : '<div class="card empty"><h2>Belum ada laporan</h2><p class="muted">Laporan muncul setelah sebuah game selesai sampai podium.</p><a class="btn" href="/dashboard.html">Mainkan kuis</a></div>';
+} catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+</script></body></html>

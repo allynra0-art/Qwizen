@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Layar host</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap wide">
+<div class="top"><span class="logo"><i></i>Qwizen</span><div class="tools" id="tools"></div></div>
+<p class="err" id="err" role="alert"></p>
+<section id="lobby"><div class="cols">
+<div class="card center"><img id="qr" alt="QR code untuk bergabung" width="220" height="220"><p class="muted">Scan QR, atau buka alamat ini di HP:</p><p class="big" id="url"></p></div>
+<div class="card center"><p class="muted">PIN game</p><div class="pin" id="pin" aria-label="PIN game"></div>
+<b>Pemain (<span id="cnt">0</span>)</b><div class="names" id="names" style="justify-content:center"></div></div></div>
+<button class="btn" id="start">Mulai game</button> <a class="btn soft" href="/dashboard.html">Batal</a></section>
+<section id="cd" hidden><div class="card center"><p class="muted">Bersiap…</p><div class="pin" id="cdn" style="font-size:8rem">3</div></div></section>
+<section id="q" hidden><div class="row"><span class="muted" id="qn"></span><span class="sp"></span><span class="timer" id="tm"></span></div>
+<div class="tbar"><b id="tb"></b></div><div class="card center"><p class="big" id="qt"></p></div>
+<div class="grid" id="qo"></div><p class="muted center" id="prog" aria-live="polite"></p><button class="btn soft" id="skip">Lewati waktu</button></section>
+<section id="res" hidden><div class="card"><b>Hasil soal</b><div class="dist" id="dist"></div><p class="muted" id="expl"></p>
+<b>Peringkat 5 besar</b><ol class="lb" id="lb"></ol></div><button class="btn" id="next">Lanjut</button> <button class="btn soft" id="end">Akhiri game</button></section>
+<section id="pod" hidden><div class="card center"><h1>Podium</h1><div class="cf" id="cf"></div><div class="podium" id="podb"></div>
+<ol class="lb" id="plb"></ol><p class="muted" id="ptot"></p></div><a class="btn" id="rep" href="/reports.html">Lihat laporan</a> <a class="btn soft" href="/dashboard.html">Selesai</a></section>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module">
+import { api, esc } from '/js/app.js';
+import { settings, beep, confetti } from '/js/ui.js';
+const $ = (s) => document.querySelector(s), pin = new URLSearchParams(location.search).get('pin') || '';
+settings($('#tools'));
+const show = (id) => ['lobby', 'cd', 'q', 'res', 'pod'].forEach((x) => { $('#' + x).hidden = x !== id; });
+let tm; const timer = (sec) => { clearInterval(tm); const end = Date.now() + sec * 1000;
+  const f = () => { const l = Math.max(0, Math.ceil((end - Date.now()) / 1000)); $('#tm').textContent = l; if (!l) clearInterval(tm); }; f(); tm = setInterval(f, 250);
+  const b = $('#tb'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = `drain ${sec}s linear forwards`; };
+const names = (a) => (a.length ? a.map((n) => `<span>${esc(n)}</span>`).join('') : '<span class="muted">Menunggu pemain bergabung…</span>');
+const lb = (el, a) => { el.innerHTML = a.map((p) => `<li><span>${p.rank}. ${esc(p.nickname)}</span><b>${p.score}</b></li>`).join(''); };
+$('#pin').textContent = pin.replace(/(\d{3})(\d{3})/, '$1 $2');
+$('#qr').src = `/api/qr/${pin}.svg`;
+try { $('#url').textContent = (await api('/info')).joinUrl.replace(/^https?:\/\//, '') + '/play.html'; } catch {}
+let last = false;
+const socket = io();
+socket.on('connect', () => socket.emit('host:join', { pin }));
+socket.on('app:error', (e) => { $('#err').textContent = e.message; });
+socket.on('host:joined', (s) => { $('#cnt').textContent = s.count; $('#names').innerHTML = names(s.names);
+  if (s.status === 'WAITING') show('lobby'); });
+socket.on('lobby:update', (s) => { $('#cnt').textContent = s.count; $('#names').innerHTML = names(s.names); });
+socket.on('game:countdown', ({ seconds }) => { show('cd'); let n = seconds; $('#cdn').textContent = n; beep('tick');
+  const c = setInterval(() => { n--; if (n <= 0) return clearInterval(c); $('#cdn').textContent = n; beep('tick'); }, 1000); });
+socket.on('question:start', (q) => { show('q'); last = q.index + 1 >= q.total; $('#qn').textContent = `Soal ${q.index + 1} dari ${q.total}`; $('#qt').textContent = q.text;
+  const sym = ['▲', '◆', '●', '■'];
+  $('#qo').innerHTML = q.options ? q.options.map((o, i) => `<div class="a tile"><span aria-hidden="true">${sym[i]}</span>${esc(o)}</div>`).join('') : '<div class="a tile" style="grid-column:1/-1">Jawab dengan mengetik</div>';
+  $('#prog').textContent = 'Belum ada yang menjawab'; timer(q.remainingSec ?? q.timeLimit); });
+socket.on('question:progress', (p) => { $('#prog').textContent = `${p.answered} dari ${p.total} pemain sudah menjawab`; });
+socket.on('question:result', (r) => { clearInterval(tm); show('res'); const max = Math.max(1, ...r.distribution.map((d) => d.count));
+  $('#dist').innerHTML = r.distribution.map((d) => `<div class="${d.correct ? 'ok' : ''}"><i style="width:${(d.count / max) * 100}%"></i><span><b>${d.correct ? '✔ ' : ''}${esc(d.label)}</b><b>${d.count}</b></span></div>`).join('');
+  $('#expl').textContent = r.explanation || ''; $('#next').textContent = (r.isLast ?? last) ? 'Lihat podium' : 'Soal berikutnya'; });
+socket.on('leaderboard:update', (a) => lb($('#lb'), a));
+socket.on('game:podium', (p) => { show('pod'); const at = (r, c) => { const x = p.top.find((y) => y.rank === r); return x ? `<div class="${c}"><b>${r}</b><small>${esc(x.nickname)}</small><small>${x.score}</small></div>` : ''; };
+  $('#podb').innerHTML = at(2, 'p2') + at(1, 'p1') + at(3, 'p3'); lb($('#plb'), p.top.filter((x) => x.rank > 3));
+  $('#ptot').textContent = `${p.total} pemain ikut bermain`; if (p.reportId) $('#rep').href = '/report.html?id=' + p.reportId; confetti($('#cf')); beep('win'); });
+$('#start').onclick = () => { $('#err').textContent = ''; socket.emit('host:start'); };
+$('#skip').onclick = () => socket.emit('host:skip');
+$('#next').onclick = () => socket.emit('host:next');
+$('#end').onclick = () => { if (confirm('Akhiri game sekarang?')) socket.emit('host:end'); };
+</script></body></html>

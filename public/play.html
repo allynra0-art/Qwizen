@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qwizen — Main</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap" style="max-width:440px">
+<div class="top"><span class="logo"><i></i>Qwizen</span><span class="muted" id="me"></span></div>
+<p class="err" id="err" role="alert"></p>
+<section id="join"><div class="card"><h1>Ayo main!</h1>
+<label for="pin">PIN game</label><input id="pin" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off">
+<label for="nick">Nama panggilan</label><input id="nick" maxlength="16" placeholder="Misal: Bintang" autocomplete="off">
+<button class="btn full" id="go">Gabung</button></div><div class="tools" id="tools" style="justify-content:center"></div></section>
+<section id="wait" hidden><div class="card center"><h1 id="wt">Kamu sudah masuk!</h1><p class="muted" id="ws"></p></div></section>
+<section id="q" hidden><div class="row"><span class="muted" id="qn"></span><span class="sp"></span><span class="timer" id="tm"></span></div>
+<div class="tbar"><b id="tb"></b></div><div class="card"><p class="big center" id="qt"></p></div><div id="ans"></div><p class="center muted" id="sent" aria-live="polite"></p></section>
+<section id="fb" hidden><div class="card center" id="fbc"><p class="big" id="fbt"></p><p class="muted" id="fbs"></p></div></section>
+<section id="fin" hidden><div class="card center"><div class="cf" id="cf"></div><h1 id="ft"></h1><p class="muted" id="fs"></p></div></section>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script type="module">
+import { esc } from '/js/app.js';
+import { settings, beep, confetti } from '/js/ui.js';
+const $ = (s) => document.querySelector(s), P = ['join', 'wait', 'q', 'fb', 'fin'];
+settings($('#tools'));
+const show = (id) => P.forEach((x) => { $('#' + x).hidden = x !== id; });
+$('#pin').value = new URLSearchParams(location.search).get('pin') || '';
+let tm, cur; const timer = (sec) => { clearInterval(tm); const end = Date.now() + sec * 1000;
+  const f = () => { const l = Math.max(0, Math.ceil((end - Date.now()) / 1000)); $('#tm').textContent = l; if (!l) clearInterval(tm); }; f(); tm = setInterval(f, 250);
+  const b = $('#tb'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = `drain ${sec}s linear forwards`; };
+const socket = io();
+const SK = 'qwizen_player', saved = () => { try { return JSON.parse(localStorage.getItem(SK)); } catch { return null; } };
+socket.on('connect', () => { const v = saved(); if (v) socket.emit('player:reconnect', v); });
+socket.on('app:error', (e) => {
+  if (e.code.startsWith('RECONNECT')) { try { localStorage.removeItem(SK); } catch {} if (e.code !== 'RECONNECT_EXPIRED') return; }
+  $('#err').textContent = e.message; $('#go').disabled = false;
+});
+$('#go').onclick = () => { $('#err').textContent = ''; $('#go').disabled = true; socket.emit('player:join', { pin: $('#pin').value.trim(), nickname: $('#nick').value }); };
+socket.on('player:joined', (p) => { try { localStorage.setItem(SK, JSON.stringify({ pin: p.pin, playerId: p.playerId, token: p.token })); } catch {} $('#err').textContent = ''; show('wait'); $('#me').textContent = p.nickname; $('#ws').textContent = `Game: ${p.title}. Tunggu guru memulai.`; });
+socket.on('game:countdown', () => { show('wait'); $('#wt').textContent = 'Bersiap…'; $('#ws').textContent = 'Soal pertama segera muncul.'; beep('tick'); });
+const send = (a) => { socket.emit('player:answer', { questionId: cur.id, answer: a }); document.querySelectorAll('#ans button,#ans input').forEach((b) => { b.disabled = true; }); };
+socket.on('question:start', (q) => {
+  cur = q; show('q'); $('#err').textContent = ''; $('#sent').textContent = ''; $('#qn').textContent = `Soal ${q.index + 1}/${q.total}`; $('#qt').textContent = q.text; timer(q.remainingSec ?? q.timeLimit);
+  const sym = ['▲', '◆', '●', '■'];
+  if (q.type === 'TYPE_ANSWER') {
+    $('#ans').innerHTML = '<input id="ta" maxlength="100" placeholder="Ketik jawabanmu" autocomplete="off" aria-label="Jawabanmu"><button class="btn full" id="tb2">Kirim</button>';
+    $('#tb2').onclick = () => { if ($('#ta').value.trim()) send($('#ta').value); };
+    $('#ans').onclick = null;
+  } else {
+    $('#ans').innerHTML = '<div class="grid">' + q.options.map((o, i) => `<button class="a" data-i="${i}"><span aria-hidden="true">${sym[i]}</span>${esc(o)}</button>`).join('') + '</div>';
+    $('#ans').onclick = (e) => { const b = e.target.closest('.a'); if (!b || b.disabled) return; const i = +b.dataset.i; send(q.type === 'TRUE_FALSE' ? i === 0 : i); };
+  }
+  if (q.answered) { document.querySelectorAll('#ans button,#ans input').forEach((b) => { b.disabled = true; }); $('#sent').textContent = 'Jawaban terkirim. Menunggu yang lain…'; }
+});
+socket.on('answer:received', () => { $('#sent').textContent = 'Jawaban terkirim. Menunggu yang lain…'; });
+socket.on('player:feedback', (f) => { show('fb'); clearInterval(tm);
+  $('#fbt').textContent = !f.answered ? 'Waktu habis' : f.correct ? `Benar! +${f.points}` : 'Belum tepat';
+  $('#fbc').className = 'card center ' + (f.correct ? 'fb-ok' : 'fb-bad'); beep(f.correct ? 'ok' : 'bad');
+  $('#fbs').textContent = `Skor ${f.score} · Peringkat ${f.rank}${f.streak > 1 ? ` · Beruntun ${f.streak}` : ''}`; });
+socket.on('player:final', (f) => { show('fin'); $('#ft').textContent = f.rank <= 3 ? `Peringkat ${f.rank}!` : `Peringkat ${f.rank}`;
+  $('#fs').textContent = `Skor akhir ${f.score} dari ${f.total} pemain.`; if (f.rank <= 3) { confetti($('#cf')); beep('win'); } });
+</script></body></html>

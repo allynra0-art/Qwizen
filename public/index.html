@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Qwizen: game kuis kelas yang seru dan ringan, jalan lancar di HP mana pun.">
+<title>Qwizen — Kuis kelas yang seru dan ringan</title><link rel="stylesheet" href="/css/app.css"></head>
+<body><div class="wrap wide">
+<header class="top"><a class="logo" href="/"><i></i>Qwizen</a>
+<div class="row"><div class="tools" id="tools"></div><a class="btn soft sm" id="tc" href="/masuk.html">Masuk guru</a></div></header>
+
+<main>
+<section class="lp-hero">
+  <div class="lp-copy">
+    <h1 class="lp-h">Kuis kelas yang seru, <span>ringan di HP mana pun.</span></h1>
+    <p class="muted lp-sub">Guru membuat kuis, siswa gabung lewat PIN. Tanpa akun untuk siswa, tanpa unduh aplikasi.</p>
+    <form class="card lp-join" id="jf" novalidate>
+      <label for="pin">Punya PIN dari guru?</label>
+      <div class="row lp-row">
+        <input id="pin" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="off" aria-describedby="perr">
+        <button class="btn" id="jg">Gabung</button>
+      </div>
+      <p class="err" id="perr" role="alert"></p>
+    </form>
+  </div>
+  <div class="lp-art" aria-hidden="true">
+    <svg class="qwi" viewBox="0 0 160 160" width="200" height="200">
+      <ellipse cx="80" cy="146" rx="46" ry="7" fill="#8B7CF6" opacity=".15"/>
+      <path d="M80 18c40 0 62 28 62 62 0 36-26 60-62 60S18 116 18 80c0-34 22-62 62-62z" fill="#8B7CF6"/>
+      <circle cx="58" cy="76" r="9" fill="#fff"/><circle cx="102" cy="76" r="9" fill="#fff"/>
+      <circle cx="60" cy="78" r="4.5" fill="#2D2A3E"/><circle cx="104" cy="78" r="4.5" fill="#2D2A3E"/>
+      <path d="M62 100q18 16 36 0" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <circle cx="42" cy="96" r="7" fill="#F29BAB" opacity=".7"/><circle cx="118" cy="96" r="7" fill="#F29BAB" opacity=".7"/>
+      <path d="M80 18c-2-10 6-16 14-14" stroke="#7FD1B9" stroke-width="6" fill="none" stroke-linecap="round"/>
+    </svg>
+    <div class="lp-chips"><span style="background:var(--rose)">▲</span><span style="background:var(--sky)">◆</span><span style="background:var(--butter)">●</span><span style="background:var(--sage)">■</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="h-how"><h2 id="h-how" class="lp-t">Cara mainnya</h2>
+<div class="lp-grid3">
+  <div class="card"><b class="lp-n">1</b><h3>Guru membuat kuis</h3><p class="muted">Tulis soal pilihan ganda, benar/salah, atau isian. Cukup beberapa menit.</p></div>
+  <div class="card"><b class="lp-n">2</b><h3>Bagikan PIN atau QR</h3><p class="muted">Tampilkan di layar. Siswa membuka beranda ini dan memasukkan PIN.</p></div>
+  <div class="card"><b class="lp-n">3</b><h3>Jawab dan lihat peringkat</h3><p class="muted">Makin cepat dan tepat, makin tinggi skornya. Ada podium di akhir.</p></div>
+</div></section>
+
+<section aria-labelledby="h-why"><h2 id="h-why" class="lp-t">Kenapa Qwizen?</h2>
+<div class="lp-grid2">
+  <div class="card"><h3>🪶 Ringan</h3><p class="muted">Tanpa gambar berat dan tanpa library tambahan. Ada Mode Hemat untuk HP lama.</p></div>
+  <div class="card"><h3>🔒 Skor dijaga server</h3><p class="muted">Waktu dan skor dihitung di server, jadi adil untuk semua siswa.</p></div>
+  <div class="card"><h3>🔄 Tahan refresh</h3><p class="muted">HP siswa mati sebentar atau halaman ter-refresh? Skornya tetap aman.</p></div>
+  <div class="card"><h3>📊 Laporan siap pakai</h3><p class="muted">Lihat soal yang paling sulit, lalu unduh hasilnya sebagai CSV untuk Excel.</p></div>
+</div></section>
+
+<section class="card lp-cta"><h2 style="margin:0 0 6px">Siap membuat kuis pertama?</h2>
+<p class="muted" style="margin:0 0 14px">Gratis. Cukup email dan password.</p>
+<a class="btn" id="tc2" href="/masuk.html#daftar">Daftar sebagai guru</a></section>
+</main>
+
+<footer class="muted lp-foot">Qwizen · dibuat untuk kelas</footer>
+</div>
+<script type="module">
+import { api } from '/js/app.js';
+import { settings } from '/js/ui.js';
+const $ = (s) => document.querySelector(s);
+settings($('#tools'));
+$('#pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
+$('#jf').onsubmit = (e) => {
+  e.preventDefault();
+  const pin = $('#pin').value.trim();
+  if (!/^\d{6}$/.test(pin)) { $('#perr').textContent = 'PIN terdiri dari 6 angka.'; $('#pin').focus(); return; }
+  location.href = '/play.html?pin=' + pin;
+};
+try { await api('/auth/me'); $('#tc').textContent = 'Ke dashboard'; $('#tc').href = '/dashboard.html'; $('#tc2').textContent = 'Buka dashboard'; $('#tc2').href = '/dashboard.html'; } catch {}
+</script></body></html>
